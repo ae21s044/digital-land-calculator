@@ -983,6 +983,7 @@
             let polygonPoints = [];
             let vertexMarkers = [];
             let tempLine = null;
+            let drawingLine = null; // This will be the line that shows while drawing
             let currentUnit = 'sqm';
             let tempMarkers = [];
 
@@ -1076,13 +1077,12 @@
                 document.getElementById('startDrawingBtn').classList.replace('btn-primary', 'btn-success');
                 updateStatusBanner("Tap on map to add first point");
 
-                // Create polygon with NO FILL color while drawing
-                currentPolygon = L.polygon([], {
+                // Create a POLYLINE for drawing (not a polygon) - no fill at all
+                drawingLine = L.polyline([], {
                     color: '#4f46e5',
                     weight: 3,
-                    fillColor: 'transparent', // No fill while drawing
-                    fillOpacity: 0, // Completely transparent
-                    dashArray: '5, 10'
+                    dashArray: '5, 10',
+                    fill: false // Important: no fill at all
                 }).addTo(map);
 
                 tempLine = L.polyline([], {
@@ -1111,7 +1111,9 @@
             function handleMapClick(e) {
                 const { lat, lng } = e.latlng;
                 polygonPoints.push([lat, lng]);
-                currentPolygon.setLatLngs([polygonPoints]);
+                
+                // Update the drawing line (polyline)
+                drawingLine.setLatLngs(polygonPoints);
 
                 const marker = L.circleMarker([lat, lng], {
                     radius: 5, color: '#4f46e5', fillColor: '#fff', fillOpacity: 1, weight: 2
@@ -1131,7 +1133,8 @@
                     updateStatusBanner("Tap red point or Finish button to close");
                 }
 
-                updateMeasurementDisplay(calculateArea(currentPolygon), calculatePerimeter(currentPolygon));
+                // Calculate area from the line (temporary)
+                updateMeasurementDisplay(calculateAreaFromPoints(polygonPoints), calculatePerimeterFromPoints(polygonPoints));
                 updatePointsCount();
             }
 
@@ -1140,9 +1143,19 @@
                 polygonPoints.pop();
                 const lastMarker = vertexMarkers.pop();
                 map.removeLayer(lastMarker);
-                if (polygonPoints.length === 0) updateStatusBanner("Tap on map to add first point");
-                currentPolygon.setLatLngs([polygonPoints]);
-                updateMeasurementDisplay(calculateArea(currentPolygon), calculatePerimeter(currentPolygon));
+                if (polygonPoints.length === 0) {
+                    updateStatusBanner("Tap on map to add first point");
+                    if (drawingLine) map.removeLayer(drawingLine);
+                    drawingLine = L.polyline([], {
+                        color: '#4f46e5',
+                        weight: 3,
+                        dashArray: '5, 10',
+                        fill: false
+                    }).addTo(map);
+                } else {
+                    drawingLine.setLatLngs(polygonPoints);
+                }
+                updateMeasurementDisplay(calculateAreaFromPoints(polygonPoints), calculatePerimeterFromPoints(polygonPoints));
                 updatePointsCount();
             }
 
@@ -1150,12 +1163,16 @@
                 if (!isDrawing || polygonPoints.length < 3) return;
                 isDrawing = false;
                 
-                // Apply fill color after finishing drawing
-                currentPolygon.setStyle({ 
-                    dashArray: null,
-                    fillColor: '#4f46e5', // Add fill color
-                    fillOpacity: 0.2 // Set opacity for fill
-                });
+                // Remove the drawing line
+                if (drawingLine) map.removeLayer(drawingLine);
+                
+                // Create the final polygon with fill
+                currentPolygon = L.polygon([polygonPoints], {
+                    color: '#4f46e5',
+                    weight: 3,
+                    fillColor: '#4f46e5',
+                    fillOpacity: 0.2
+                }).addTo(map);
                 
                 map.off('click', handleMapClick);
                 map.off('mousemove', handleMouseMove);
@@ -1173,9 +1190,10 @@
 
             function clearDrawing() {
                 if (currentPolygon) map.removeLayer(currentPolygon);
+                if (drawingLine) map.removeLayer(drawingLine);
                 if (tempLine) map.removeLayer(tempLine);
                 vertexMarkers.forEach(m => map.removeLayer(m));
-                currentPolygon = null; tempLine = null; polygonPoints = []; vertexMarkers = []; isDrawing = false;
+                currentPolygon = null; drawingLine = null; tempLine = null; polygonPoints = []; vertexMarkers = []; isDrawing = false;
                 updateStatusBanner(null); updateMeasurementDisplay(0, 0); updatePointsCount();
                 map.off('click', handleMapClick); map.off('mousemove', handleMouseMove);
                 map.getContainer().style.cursor = '';
@@ -1199,12 +1217,38 @@
                 return Math.abs(area * R * R / 2);
             }
 
+            function calculateAreaFromPoints(points) {
+                if (!points || points.length < 3) return 0;
+                let area = 0;
+                const R = 6371000;
+                for (let i = 0; i < points.length; i++) {
+                    const p1 = points[i];
+                    const p2 = points[(i + 1) % points.length];
+                    const Δλ = (p2[1] - p1[1]) * Math.PI / 180;
+                    const φ1 = p1[0] * Math.PI / 180;
+                    const φ2 = p2[0] * Math.PI / 180;
+                    area += Δλ * (2 + Math.sin(φ1) + Math.sin(φ2));
+                }
+                return Math.abs(area * R * R / 2);
+            }
+
             function calculatePerimeter(polygon) {
                 const latLngs = polygon.getLatLngs()[0];
                 if (!latLngs || latLngs.length < 2) return 0;
                 let perimeter = 0;
                 for (let i = 0; i < latLngs.length; i++) {
                     perimeter += latLngs[i].distanceTo(latLngs[(i + 1) % latLngs.length]);
+                }
+                return perimeter;
+            }
+
+            function calculatePerimeterFromPoints(points) {
+                if (!points || points.length < 2) return 0;
+                let perimeter = 0;
+                for (let i = 0; i < points.length; i++) {
+                    const p1 = L.latLng(points[i]);
+                    const p2 = L.latLng(points[(i + 1) % points.length]);
+                    perimeter += p1.distanceTo(p2);
                 }
                 return perimeter;
             }
@@ -1246,7 +1290,11 @@
                     document.querySelectorAll('.unit-toggle button').forEach(b => b.classList.remove('active'));
                     this.classList.add('active');
                     currentUnit = this.dataset.unit;
-                    if (currentPolygon) updateMeasurementDisplay(calculateArea(currentPolygon), calculatePerimeter(currentPolygon));
+                    if (currentPolygon) {
+                        updateMeasurementDisplay(calculateArea(currentPolygon), calculatePerimeter(currentPolygon));
+                    } else if (polygonPoints.length > 0) {
+                        updateMeasurementDisplay(calculateAreaFromPoints(polygonPoints), calculatePerimeterFromPoints(polygonPoints));
+                    }
                 });
             });
 
