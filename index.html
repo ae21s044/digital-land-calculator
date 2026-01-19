@@ -497,6 +497,15 @@
             display: block;
         }
         
+        @keyframes pulseMarker {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .first-point-pulse {
+            animation: pulseMarker 1.5s infinite ease-in-out;
+        }
+        
         /* Mobile-specific styles */
         @media (max-width: 768px) {
             .container {
@@ -885,7 +894,7 @@
                             <li>Search a <strong>PIN Code</strong> to center your view.</li>
                             <li>Click <strong>Draw</strong> to start boundary mapping.</li>
                             <li>Click points on the map to define the plot.</li>
-                            <li>Click <strong>Finish</strong> button to complete the shape.</li>
+                            <li>Tap the <strong>Red pulsing point</strong> to close the shape.</li>
                             <li>Use <strong>Undo</strong> to remove last point or <strong>Clear</strong> to start over.</li>
                         </ol>
                     </div>
@@ -1066,7 +1075,7 @@
                 
                 document.getElementById('startDrawingBtn').innerHTML = '<i class="fas fa-check"></i> <span class="btn-text">Finish</span>';
                 document.getElementById('startDrawingBtn').classList.replace('btn-primary', 'btn-success');
-                updateStatusBanner("Click on map to add first point");
+                updateStatusBanner("Tap on map to add first point");
 
                 // Create a POLYLINE for drawing (not a polygon) - no fill at all
                 drawingLine = L.polyline([], {
@@ -1106,20 +1115,22 @@
                 // Update the drawing line (polyline)
                 drawingLine.setLatLngs(polygonPoints);
 
-                // Add a simple marker (all blue, no special styling for first point)
                 const marker = L.circleMarker([lat, lng], {
-                    radius: 5, 
-                    color: '#4f46e5', 
-                    fillColor: '#fff', 
-                    fillOpacity: 1, 
-                    weight: 2
+                    radius: 5, color: '#4f46e5', fillColor: '#fff', fillOpacity: 1, weight: 2
                 }).addTo(map);
                 vertexMarkers.push(marker);
 
                 if (polygonPoints.length === 1) {
+                    marker.setStyle({ color: '#ef4444', radius: 8 });
+                    marker.getElement().classList.add('first-point-pulse');
+                    marker.bindTooltip("Tap to Finish", { direction: 'top', offset: [0, -10] });
+                    marker.on('click', (ev) => {
+                        L.DomEvent.stopPropagation(ev);
+                        if (polygonPoints.length >= 3) finishDrawing();
+                    });
                     updateStatusBanner("Add more points...");
                 } else if (polygonPoints.length >= 3) {
-                    updateStatusBanner("Add more points or click Finish button");
+                    updateStatusBanner("Tap red point or Finish button to close");
                 }
 
                 // Calculate area from the line (temporary)
@@ -1133,7 +1144,7 @@
                 const lastMarker = vertexMarkers.pop();
                 map.removeLayer(lastMarker);
                 if (polygonPoints.length === 0) {
-                    updateStatusBanner("Click on map to add first point");
+                    updateStatusBanner("Tap on map to add first point");
                     if (drawingLine) map.removeLayer(drawingLine);
                     drawingLine = L.polyline([], {
                         color: '#4f46e5',
