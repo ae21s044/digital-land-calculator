@@ -702,12 +702,12 @@
     <script>
         // Fix for GitHub Pages - Ensure map loads properly
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Map
+            // Initialize Map with touch zoom enabled
             const map = L.map('map', {
                 zoomControl: true,
                 scrollWheelZoom: true,
-                doubleClickZoom: false,
-                touchZoom: true,
+                doubleClickZoom: true, // Keep double-click zoom enabled
+                touchZoom: true, // Enable touch/pinch zoom
                 tap: true,
                 dragging: true
             }).setView([20.5937, 78.9629], 5);
@@ -1006,11 +1006,7 @@
                 alert("Unable to get your location. Please check location permissions.");
             });
 
-            // Prevent zoom on double-tap for mobile
-            map.touchZoom.disable();
-            map.doubleClickZoom.disable();
-            
-            // Enable proper touch interactions
+            // Enable proper touch interactions - REMOVED THE DISABLE LINES
             map.tap.enable();
         });
     </script>
