@@ -1076,11 +1076,12 @@
                 document.getElementById('startDrawingBtn').classList.replace('btn-primary', 'btn-success');
                 updateStatusBanner("Tap on map to add first point");
 
+                // Create polygon with NO FILL color while drawing
                 currentPolygon = L.polygon([], {
                     color: '#4f46e5',
                     weight: 3,
-                    fillColor: '#4f46e5',
-                    fillOpacity: 0.2,
+                    fillColor: 'transparent', // No fill while drawing
+                    fillOpacity: 0, // Completely transparent
                     dashArray: '5, 10'
                 }).addTo(map);
 
@@ -1149,7 +1150,12 @@
                 if (!isDrawing || polygonPoints.length < 3) return;
                 isDrawing = false;
                 
-                currentPolygon.setStyle({ dashArray: null });
+                // Apply fill color after finishing drawing
+                currentPolygon.setStyle({ 
+                    dashArray: null,
+                    fillColor: '#4f46e5', // Add fill color
+                    fillOpacity: 0.2 // Set opacity for fill
+                });
                 
                 map.off('click', handleMapClick);
                 map.off('mousemove', handleMouseMove);
@@ -1158,7 +1164,7 @@
                 if (tempLine) map.removeLayer(tempLine);
                 vertexMarkers.forEach(m => map.removeLayer(m));
                 vertexMarkers = [];
-                updateStatusBanner(null);
+                updateStatusBanner("Area completed! Click 'Draw' to start a new one.");
                 
                 document.getElementById('startDrawingBtn').innerHTML = '<i class="fas fa-plus"></i> <span class="btn-text">Draw</span>';
                 document.getElementById('startDrawingBtn').classList.replace('btn-success', 'btn-primary');
